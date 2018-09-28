@@ -1,5 +1,5 @@
 function [hfig] = imvol(vol, varargin)
-% IMVOL Display volume images and select ROIs
+%IMVOL Display volume images and select ROIs
 %     Display using imshow() with interactive keyboard navigation for volume images (or stack)
 %     Select ROIs using imbinarize() with adjustable parameters and keyboard interactions. 
 %     (New figure will be created unless fig or axes handles are given.)
@@ -20,11 +20,11 @@ function [hfig] = imvol(vol, varargin)
 %           'edit'   - When it is flase, the BW will not be modified by the mask or added ROIs manually drawn.
 %           'z_step_um' - z-stack spatial spacing between frames. Default is 1 um.
 %           'FOV'    - size of the image in um. Scale bar can be displayed.
-% test
+%
 % 
 %     Output:
 %           hfig - ROI mask data will be saved in UserData field ((hfig.UserData.cc) 
-%           as well as in WorkSpace
+%           as well as in WorkSpace.
 %                   
 % 
 %     Press 'spacebar' to switch between Modes.
@@ -37,8 +37,10 @@ function [hfig] = imvol(vol, varargin)
 %                   'b' key - Display scale bar. (Currently for 25x Leica obj).
 %                   's' key - Save current image as PNG
 %                   'v' key - Display/Hide verbose text notes in imshow
-%                   'g' key - Save image stack as GIF, MP4 and Tif formats.
+%                   'g' key - Create animated movies as GIF, MP4 and Tif
+%                   formats.
 %                   'p' key - Create projected image. Max and Mean.
+%                   'z' key - display Z relative position of current frame (Default z-step is 1 um).                  
 % 
 %        Mode2 - ROI select mode. 'cc' (ROI) strucrue will be saved in Workspace.
 %                   L /R    arrow keys - adjust 'sensitivity' in imbinarize(J, 'adaptive')
@@ -59,19 +61,26 @@ function [hfig] = imvol(vol, varargin)
     p = ParseInput(varargin{:});
     %
     s_title = p.Results.title;
-    FLAG_txt = p.Results.verbose;
+    
     hfig = p.Results.hfig;
     ax = p.Results.axes;
     cc = p.Results.roi;
     zoom = p.Results.scanZoom;
     SAVE_png = p.Results.png;
+    FLAG_txt = p.Results.verbose;
+    FLAG_z = p.Results.z_display;
     FLAG_scale_bar = true;
     FLAG_roi = false;
     FLAG_color_segmentation = false;
     FLAG_hole_fill = true;
     FLAG_edit = p.Results.edit;
     z_step_um = p.Results.z_step_um;
-    
+    %
+%     import java.awt.Robot
+%     import java.awt.event.*
+%     keys = Robot;
+%     keys.setAutoDelay(0);
+    %
     if nargin < 1
         error('No image (stack) was not provided.');
     else
@@ -117,8 +126,7 @@ function [hfig] = imvol(vol, varargin)
     % Set the callback on figure
     set(hfig, 'KeyPressFcn', @keypress)
     
-    % Normalization and get frame numbers
-    vol = scaled(vol);
+    % Get frame numbers
     [rows, cols, n_frames] = size(vol);
     
     % mask variables for ROI removal by user
@@ -137,7 +145,7 @@ function [hfig] = imvol(vol, varargin)
     id_add_upper = 3;
     
     % ROI mode parameters
-    sensitivity_0 = 0.06; % sensitivity for adaptive binarization
+    sensitivity_0 = 0.02; % sensitivity for adaptive binarization
     P_connected_0 = 70; % depending on magnification (zoom) factor
     sensitivity = sensitivity_0; 
     P_connected = P_connected_0; 
@@ -151,19 +159,30 @@ function [hfig] = imvol(vol, varargin)
         else
             I = comp(vol, data.i);
         end
-        
+        minI = min(I(:));
+        maxI = max(I(:));
+        % rescaling for stretchlim
+        I = mat2gray(I);
+        %       
         upper = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
         lower = min((tols(id_tol) + tols(id_add_lower))*0.01, upper);
-        
         Tol = [lower upper];
-        MinMax = stretchlim(I,Tol);
+        MinMax = stretchlim(I,Tol); % output is always [0 1].
         J = imadjust(I, MinMax);
+        
+        % Reconversion to original scale
+        MinMax = MinMax * double(maxI - minI);
+        MinMax = MinMax + double(minI);
+        
+        % new way of adjusting?
+        %J = imadjust(I, MinMax, [0 1]); % MinMax can be real value?
 
         % draw image or visualization
         if ~FLAG_roi 
             imshow(J);
             % txt str
-            str1 = sprintf('low=%.3f upp=%.3f', lower, upper);
+            %str1 = sprintf('low=%.3f upp=%.3f', lower, upper);
+            str1 = sprintf('Min =%6.0f (%4.1f%%)\nMax =%5.0f (%4.1f%%)',MinMax(1),lower*100,MinMax(2),upper*100);
             str2 = '''q'' for default contrast. ''SPACE'' for ROI mode. ''b'' scale bar';
             str3 = sprintf('%d/%d', data.i, data.imax);
         else 
@@ -224,12 +243,12 @@ function [hfig] = imvol(vol, varargin)
                 assignin('base', 'mask', mask);
                 assignin('base', 'white', white);
                 %
-            disp([num2str(cc.NumObjects), ' Objects (ROIs) are selected.']);    
+                disp([num2str(cc.NumObjects), ' Objects (ROIs) are selected.']);    
         end
         
         % Shared components
-        % Title
         ax = gca;
+        % Title (on axes, not image)
         title(s_title, 'FontSize', 15, 'Color', 'w');
         
         % Scale bar
@@ -268,17 +287,17 @@ function [hfig] = imvol(vol, varargin)
             filename = strrep(filename, '(', '_');
             filename = strrep(filename, ':', '');
             if ~FLAG_roi
-                %saveas(hfig, [filename,'_',num2str(data.i),'of',num2str(n_frames),'.png']);
-                print([filename,'_',num2str(data.i),'of',num2str(n_frames),'.png'], '-dpng', '-r300'); %high res
+                filename = sprintf('%s_%dof%d_lower%.3f_upper%.3f.png', filename, data.i, n_frames, lower, upper); 
             else
-                saveas(hfig, [filename,'_',num2str(data.i),'of',num2str(n_frames),'_ROI.png']);
+                filename = sprintf('%s_%dof%d_ROI_conn%.3f_sens%.3f.png', filename, data.i, n_frames, P_connected, sensitivity);
             end
+            %saveas(hfig, filename);
+            print(filename, '-dpng', '-r300'); %high res
             SAVE_png = false; % save only one time
         end   
         
         if FLAG_txt
-        % text. where? on the image
-        % advantage of text on the image. automatic clear.
+            % Text on the image. (will be cleared if redrawed.)
             if FLAG_roi
                 str1 = sprintf('Sens.=%.2f Pconn.=%.2f.', sensitivity, P_connected);
                 str2 = sprintf('Press ''d'' or ''r'' to remove ROIs. ''q'' for default settings');
@@ -290,12 +309,19 @@ function [hfig] = imvol(vol, varargin)
             end
             
             % x,y for text. Coordinate for imshow is different from plot
-            text(ax.XLim(1), ax.YLim(end), str1, 'FontSize', 12, 'Color', 'w', ...
+            text(ax.XLim(1), ax.YLim(end), str1, 'FontSize', 14, 'Color', 'w', ...
                 'VerticalAlignment', 'bottom', 'HorizontalAlignment','left');
-            text(ax.XLim(2), ax.YLim(end), str3, 'FontSize', 12, 'Color', 'w', ...
+            text(ax.XLim(2), ax.YLim(end), str3, 'FontSize', 14, 'Color', 'w', ...
                 'VerticalAlignment', 'bottom', 'HorizontalAlignment','right');
-            text((ax.XLim(1)+ax.XLim(end))/2, ax.YLim(end), str2, 'FontSize', 12, 'Color', 'w', ...
+            text((ax.XLim(1)+ax.XLim(end))/2, ax.YLim(end), str2, 'FontSize', 14, 'Color', 'w', ...
                 'VerticalAlignment', 'bottom', 'HorizontalAlignment','center');
+        end
+        
+        if FLAG_z
+            %str3 = sprintf(' (Frame %d/%d)\n  Z  = %3d um ', data.i, data.imax, data.i*z_step_um);
+            str3 = sprintf('   Z =%3d um ', data.i*z_step_um);
+            text(ax.XLim(1), ax.YLim(1), str3, 'FontSize', 15, 'Color', 'w', ...
+                'VerticalAlignment', 'top', 'HorizontalAlignment','left');
         end
         
         uiresume(hfig);
@@ -353,6 +379,7 @@ function [hfig] = imvol(vol, varargin)
             case 'g' %save as GIF and MP4
                 % conditions
                 FLAG_txt = false;
+                FLAG_z = true;
                 %
                 v = VideoWriter([s_title, '.mp4'], 'MPEG-4'); 
                 v.FrameRate = 4;
@@ -361,14 +388,6 @@ function [hfig] = imvol(vol, varargin)
                 for k = 1:data.imax
                     data.i = k;
                     redraw(); title('');                  
-                    % frame number
-                    if contains(s_title, 'stack')
-                        str3 = sprintf(' Z = %3d um (%3d/%d) ', k*z_step_um, data.i, data.imax);
-                    else  
-                        str3 = sprintf('%d/%d ', data.i, data.imax);
-                    end
-                    text(ax.XLim(1), ax.YLim(1), str3, 'FontSize', 15, 'Color', 'w', ...
-                        'VerticalAlignment', 'top', 'HorizontalAlignment','left');
                     frame = getframe(hfig); % frame from Handle hfig.
                     
                     % animated GIF
@@ -403,6 +422,8 @@ function [hfig] = imvol(vol, varargin)
                 
             case 'b'
                 FLAG_scale_bar = ~FLAG_scale_bar;
+                % ask FOV size if there no function for get_FOV_size
+                %
             case 'space' % ROI mode switch
                 FLAG_roi = ~FLAG_roi;
                 set(hfig, 'KeyPressFcn', @keypress_roi)
@@ -411,6 +432,12 @@ function [hfig] = imvol(vol, varargin)
             case 'q' % default contrast
                 id_tol = 5;
                 id_add_lower = 1;
+            case 'z' % z depth display mode
+                FLAG_z = ~FLAG_z;
+                if FLAG_z
+                    % display conversion unit
+                    fprintf('Z step between frames is %.2f um.\n', z_step_um);
+                end
             otherwise
                 uiresume(hfig)
                 return;
@@ -425,6 +452,11 @@ function [hfig] = imvol(vol, varargin)
         s = 0.02;
         s_pixel = 5;
         
+        % ESC key press? does not work for imroi..
+%         keys.keyPress(java.awt.event.KeyEvent.VK_ESCAPE) 
+%         keys.keyRelease(java.awt.event.KeyEvent.VK_ESCAPE)
+%         pause(0.05)
+  
         switch lower(evnt.Key)
             case 'rightarrow'
                 sensitivity = min(sensitivity + s, 1); 
@@ -451,10 +483,13 @@ function [hfig] = imvol(vol, varargin)
                 FLAG_roi = ~FLAG_roi;
                 set(hfig, 'KeyPressFcn', @keypress)
             case 'r' % mask update. remove connected components by multiple mouse clicks
+                uiresume(hfig)
                 [col, row] = getpts;
                 c = [c; col];
                 r = [r; row];
+                
             case 'd' % mask update. 'Drag': remove all components in specified rect ROI.
+                %uiresume(hfig)
                 hrect = imrect;
                 while ~isempty(hrect)
                     m = createMask(hrect);
@@ -462,19 +497,27 @@ function [hfig] = imvol(vol, varargin)
                     redraw();
                     hrect = imrect;
                 end
+                
             case 'l' % line mask
+                %uiresume(hfig)
                 hline = imline;
-                while ~isempty(hline)
-                    m = createMask(hline);
-                    mask = mask | m;
-                    redraw();
-                    hline = imline;
-                end
-            case 'a' % add patch 
+                % additional callback to imline object? to prevent
+                % crosstalk.. 
+                m = createMask(hline);
+                mask = mask | m;
+                
+%                 while ~isempty(hline)
+%                     m = createMask(hline);
+%                     mask = mask | m;
+%                     redraw();
+%                     hline = imline;
+%                 end
+  
+            case 'a' % add patch
+                uiresume(hfig)
                 h_ellip = imellipse;
                 m = createMask(h_ellip);
                 white = white | m;         
-            case 'n' % display numbers on ROIs
             
             case 'f' % turn off automatic filling (imfill) inside the grain.
                 FLAG_hole_fill = ~FLAG_hole_fill;
@@ -490,30 +533,15 @@ function [hfig] = imvol(vol, varargin)
                 r = []; c = [];
            
             otherwise
-                uiresume(hfig)
-                return;
+                return; % must exit the function for other key presses.
         end
         
         uiresume(hfig)
         redraw();
-        
     end
 
     
     
-end
-
-function scaled = scaled(data)
-% Scale the (2-D) matrix a onto [0, 1] range.
-% For true color image.
-% Min & Max operation will be made over whole elements.
-
-% data conversion if a is an integer array
-a = double(data);
-
-min_subtracted = a - min(a(:));
-scaled = min_subtracted/(max(min_subtracted(:))+0.00001);
-
 end
 
 function q = is_valid_zoom(zoom)
@@ -581,6 +609,7 @@ function p =  ParseInput(varargin)
     addParamValue(p,'scanZoom', 0, @(x) isnumeric(x));
     addParamValue(p,'edit', true, @(x) islogical(x));
     addParamValue(p,'z_step_um', 1, @(x) isnumeric(x));
+    addParamValue(p,'z_display', false, @(x) islogical(x));
     addParamValue(p,'FOV', 0, @(x) isnumeric(x)); % um
     
     % Call the parse method of the object to read and validate each argument in the schema:
@@ -633,3 +662,5 @@ function J = myshow(I, c)
     MinMax = stretchlim(I,Tol);
     J = imadjust(I, MinMax);
 end
+
+% redefine imline? 
