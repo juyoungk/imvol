@@ -34,6 +34,8 @@ function [hfig] = imvol(vol, varargin)
 %                   Up/Down arrow keys - adjust contrast levels
 %                   'l' key - Draw line and get Z (or vertical) profile.
 %                             (default z_step = 1 um)
+%                   'r' key - Draw rectangular and get Z (or vertical) profile of Max projection line.
+%                             (default z_step = 1 um)
 %                   'b' key - Display scale bar. (Currently for 25x Leica obj).
 %                   's' key - Save current image as PNG
 %                   'v' key - Display/Hide verbose text notes in imshow
@@ -180,10 +182,13 @@ function [hfig] = imvol(vol, varargin)
         % draw image or visualization
         if ~FLAG_roi 
             imshow(J);
+            %daspect auto;
+            
             % txt str
             %str1 = sprintf('low=%.3f upp=%.3f', lower, upper);
             str1 = sprintf('Min =%6.0f (%4.1f%%)\nMax =%5.0f (%4.1f%%)',MinMax(1),lower*100,MinMax(2),upper*100);
-            str2 = '''q'' for default contrast. ''SPACE'' for ROI mode. ''b'' scale bar';
+            %str2 = '''q'' for default contrast. ''SPACE'' for ROI mode. ''b'' scale bar';
+            str2 = '''SPACE'' for ROI mode.';
             str3 = sprintf('%d/%d', data.i, data.imax);
         else 
             % ROI mode
@@ -356,14 +361,51 @@ function [hfig] = imvol(vol, varargin)
                 for k = 1:n_frames
                     c_section(:,k) = improfile(vol(:,:,k),xi,yi);
                 end
+                if zoom == 0
+                    zoom = input('Please enter the imaging zoom factor: ');
+                end
                 fov = get_FOV_size_x25_Leica(zoom);
                 px_per_um = rows/fov;
                 a_ratio = px_per_um/z_step_um;
                 img = c_section.';
                 [numrows, numcols] = size(img);
-                C = imresize(img, [a_ratio*numrows, numcols]);
+                C = imresize(img, [round(a_ratio*numrows), numcols]);
                 make_im_figure(500, 0); 
-                myshow(C, 0.4);                
+                myshow(C, 0.1);                
+                ax = gca; 
+                %scale bar?l
+                hold on;
+                l_scalebar = 50; % um
+                x0 = ax.XLim(end) * 0.90;
+                y0 = ax.YLim(end) * 0.90;
+                quiver(x0, y0, l_scalebar*px_per_um, 0, 'ShowArrowHead', 'off', 'Color', 'w', 'LineWidth', 2);
+                text(x0+l_scalebar*px_per_um/2, y0, [num2str(l_scalebar),' um'], 'FontSize', 15, 'Color', 'w', ...
+                'VerticalAlignment', 'bottom', 'HorizontalAlignment','center');
+                hold off;
+            case 'r' % rectangular profile
+                h = imrect;
+                m = h.createMask;
+                [row, col] = size(m);
+                c_section = zeros(col, n_frames);
+                for k = 1:n_frames
+                    im = vol(:,:,k);
+                    im = im .* int16(m);r
+                    %im = myadjust(im, 0.05);
+                    %im = im .* double(m);
+                    %c_section(:,k) = mean(im, 1);
+                    c_section(:,k) = max(im, [], 1);
+                end
+                if zoom == 0
+                    zoom = input('Please enter the imaging zoom factor: ');
+                end
+                fov = get_FOV_size_x25_Leica(zoom);
+                px_per_um = rows/fov;
+                a_ratio = px_per_um/z_step_um;
+                img = c_section.';
+                [numrows, numcols] = size(img);
+                C = imresize(img, [round(a_ratio*numrows), numcols]);
+                make_im_figure(500, 0); 
+                myshow(C, 0.3);                
                 ax = gca; 
                 %scale bar?
                 hold on;
@@ -382,7 +424,7 @@ function [hfig] = imvol(vol, varargin)
                 FLAG_z = true;
                 %
                 v = VideoWriter([s_title, '.mp4'], 'MPEG-4'); 
-                v.FrameRate = 4;
+                v.FrameRate = 20;
                 open(v);
                 % 
                 for k = 1:data.imax
@@ -400,7 +442,6 @@ function [hfig] = imvol(vol, varargin)
                         imwrite(A, map, [s_title, '.gif'], 'gif', 'WriteMode', 'append', 'DelayTime', 0.2);
                         imwrite(im, [s_title, '.tif'], 'WriteMode', 'append');
                     end
-                    
                     % 
                     writeVideo(v, frame);
                 end
@@ -657,7 +698,14 @@ end
 end
 
 function J = myshow(I, c)
-%imshow with contrast value (%) 
+%imshow with contrast value (%)
+    J = myadjust(I, c);
+    imshow(J);
+end
+
+function J = myadjust(I, c)
+%imshow with contrast value (%)
+    I = mat2gray(I);
     Tol = [c*0.01 1-c*0.01];
     MinMax = stretchlim(I,Tol);
     J = imadjust(I, MinMax);
