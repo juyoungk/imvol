@@ -76,6 +76,7 @@ function [hfig] = imvol(vol, varargin)
     FLAG_color_segmentation = false;
     FLAG_hole_fill = true;
     FLAG_edit = p.Results.edit;
+    globalContrast = p.Results.globalContrast;
     z_step_um = p.Results.z_step_um;
     %
 %     import java.awt.Robot
@@ -140,18 +141,26 @@ function [hfig] = imvol(vol, varargin)
     data.i = 1; % index for stack
     data.imax = n_frames;
 
-    tols = [0, 0.05, 0.1:0.1:0.9, 1:0.2:2, 2.5:0.5:5, 6:1:11, 12:2:20, 25:5:95]; % percentage; tolerance for saturation
+    tols = [0, 0.01, 0.02, 0.05, 0.1:0.1:0.9, 1:0.2:2, 2.5:0.5:5, 6:1:11, 12:2:20, 25:5:95]; % percentage; tolerance for saturation
     n_tols = length(tols);
     id_tol = 4; % initial tol = 0.05;
     id_add_lower = 1;
     id_add_upper = 3;
     
     % ROI mode parameters
-    sensitivity_0 = 0.02; % sensitivity for adaptive binarization
-    P_connected_0 = 70; % depending on magnification (zoom) factor
+    sensitivity_0 = 0.04; % sensitivity for adaptive binarization
+    P_connected_0 = 55; % depending on magnification (zoom) factor
     sensitivity = sensitivity_0; 
     P_connected = P_connected_0; 
     
+    % Global MinMax
+    if globalContrast
+        vv = vol(:);
+        minI = min(vv);
+        maxI = max(vv);
+        vv = mat2gray(vv);
+    end
+        
     % Nested function definition for easy access to stack 'vol'
     function redraw()
         % get focus
@@ -161,18 +170,27 @@ function [hfig] = imvol(vol, varargin)
         else
             I = comp(vol, data.i);
         end
-        minI = min(I(:));
-        maxI = max(I(:));
-        % rescaling for stretchlim
-        I = mat2gray(I);
-        %       
+        
+        % Contrast range
         upper = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
         lower = min((tols(id_tol) + tols(id_add_lower))*0.01, upper);
         Tol = [lower upper];
-        MinMax = stretchlim(I,Tol); % output is always [0 1].
+        
+        % MinMax
+        if globalContrast
+            I = mat2gray(I);
+            MinMax = stretchlim(vv, Tol); % Can vary depending on Tol values. 
+        else
+            minI = min(I(:));
+            maxI = max(I(:));
+            % Rescaling to [0 1] for stretchlim
+            I = mat2gray(I);
+            MinMax = stretchlim(I,Tol); % output is always [0 1].
+        end
+        % Image rescaling
         J = imadjust(I, MinMax);
         
-        % Reconversion to original scale
+        % Reconversion to original scale (for display)
         MinMax = MinMax * double(maxI - minI);
         MinMax = MinMax + double(minI);
         
@@ -182,7 +200,9 @@ function [hfig] = imvol(vol, varargin)
         % draw image or visualization
         if ~FLAG_roi 
             imshow(J);
-            %daspect auto;
+            
+            % turn on this option for 2D presentation of 1D bar patterns
+            % daspect auto;
             
             % txt str
             %str1 = sprintf('low=%.3f upp=%.3f', lower, upper);
@@ -211,17 +231,22 @@ function [hfig] = imvol(vol, varargin)
                 end
                 bw = bw - bwselect(bw, c, r, 8);  % remove mouse-clicked components
                 %s = regionprops(bw, 'Centroid');
-                % save for regenrating same pattern
-                    cc.mask  = mask;
-                    cc.white = white;
-                    cc.P_connected = P_connected;
-                    cc.sensitivity = sensitivity;
             end
-            cc = bwconncomp(bw, 8); % 'cc' is updated inside a local function. 
+            cc = bwconncomp(bw, 8); % 'cc' is updated inside a local function.
+            
+            % save for regenrating same pattern
+                cc.mask  = mask;
+                cc.white = white;
+                cc.P_connected = P_connected;
+                cc.sensitivity = sensitivity;
 
             % visualization of computed ROI
             if ~FLAG_color_segmentation
                 imshow(J); 
+                
+                % n_frames =2 case: 
+                % imshowpair?
+                
                 hold on
                     % Contour 
                     visboundaries(bw,'Color','r','LineWidth', 0.7); 
@@ -421,10 +446,15 @@ function [hfig] = imvol(vol, varargin)
             case 'g' %save as GIF and MP4
                 % conditions
                 FLAG_txt = false;
-                FLAG_z = true;
+                if contains(s_title, 'stack')
+                    FLAG_z = true;
+                else
+                    FLAG_z = false;
+                end
+                delaytime = 0.1;
                 %
                 v = VideoWriter([s_title, '.mp4'], 'MPEG-4'); 
-                v.FrameRate = 20;
+                v.FrameRate = 4;
                 open(v);
                 % 
                 for k = 1:data.imax
@@ -436,11 +466,11 @@ function [hfig] = imvol(vol, varargin)
                     im = frame2im(frame);
                     [A, map] = rgb2ind(im, 256);
                     if k == 1 
-                        imwrite(A, map, [s_title, '.gif'], 'gif', 'LoopCount', Inf, 'DelayTime', 0.2);
-                        imwrite(im, [s_title, '.tif']);
+                        imwrite(A, map, [s_title, '.gif'], 'gif', 'LoopCount', Inf, 'DelayTime', delaytime);
+                        %imwrite(im, [s_title, '.tif']);
                     else
-                        imwrite(A, map, [s_title, '.gif'], 'gif', 'WriteMode', 'append', 'DelayTime', 0.2);
-                        imwrite(im, [s_title, '.tif'], 'WriteMode', 'append');
+                        imwrite(A, map, [s_title, '.gif'], 'gif', 'WriteMode', 'append', 'DelayTime', delaytime);
+                        %imwrite(im, [s_title, '.tif'], 'WriteMode', 'append');
                     end
                     % 
                     writeVideo(v, frame);
@@ -652,6 +682,7 @@ function p =  ParseInput(varargin)
     addParamValue(p,'z_step_um', 1, @(x) isnumeric(x));
     addParamValue(p,'z_display', false, @(x) islogical(x));
     addParamValue(p,'FOV', 0, @(x) isnumeric(x)); % um
+    addParamValue(p,'globalContrast', false, @(x) islogical(x)); % um
     
     % Call the parse method of the object to read and validate each argument in the schema:
     p.parse(varargin{:});
