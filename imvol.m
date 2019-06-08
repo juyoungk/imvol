@@ -239,6 +239,9 @@ function [hfig] = imvol(vol, varargin)
                 cc.white = white;
                 cc.P_connected = P_connected;
                 cc.sensitivity = sensitivity;
+            % save frame id 
+                cc.i_image = data.i;
+                cc.numImages = data.imax;
 
             % visualization of computed ROI
             if ~FLAG_color_segmentation
