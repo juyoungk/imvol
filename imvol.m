@@ -78,6 +78,7 @@ function [hfig] = imvol(vol, varargin)
     FLAG_edit = p.Results.edit;
     globalContrast = p.Results.globalContrast;
     z_step_um = p.Results.z_step_um;
+    timestamp = p.Results.timestamp;
     %
 %     import java.awt.Robot
 %     import java.awt.event.*
@@ -132,6 +133,12 @@ function [hfig] = imvol(vol, varargin)
     % Get frame numbers
     [rows, cols, n_frames] = size(vol);
     
+    % Aux info: timestamp
+    if ~isempty(timestamp) && n_frame ~= length(timestamp)
+        disp('num of timestamp ~= num of frames.');
+        timestamp = NaN(1, n_frames);
+    end
+    
     % mask variables for ROI removal by user
     mask = false(rows, cols);
     white = false(rows, cols);
@@ -140,7 +147,6 @@ function [hfig] = imvol(vol, varargin)
     % Default parameters
     data.i = 1; % index for stack
     data.imax = n_frames;
-
     tols = [0, 0.01, 0.02, 0.05, 0.1:0.1:0.9, 1:0.2:2, 2.5:0.5:5, 6:1:11, 12:2:20, 25:5:95]; % percentage; tolerance for saturation
     n_tols = length(tols);
     id_tol = 4; % initial tol = 0.05;
@@ -239,8 +245,9 @@ function [hfig] = imvol(vol, varargin)
                 cc.white = white;
                 cc.P_connected = P_connected;
                 cc.sensitivity = sensitivity;
-            % save frame id 
+            % save frame id & aux info
                 cc.i_image = data.i;
+                cc.timestamp = timestamp(data.i);
                 cc.numImages = data.imax;
 
             % visualization of computed ROI
@@ -685,6 +692,7 @@ function p =  ParseInput(varargin)
     addParamValue(p,'z_step_um', 1, @(x) isnumeric(x));
     addParamValue(p,'z_display', false, @(x) islogical(x));
     addParamValue(p,'FOV', 0, @(x) isnumeric(x)); % um
+    addParamValue(p,'timestamp', [], @(x) isnumeric(x)); % sec
     addParamValue(p,'globalContrast', false, @(x) islogical(x)); % um
     
     % Call the parse method of the object to read and validate each argument in the schema:
