@@ -134,7 +134,9 @@ function [hfig] = imvol(vol, varargin)
     [rows, cols, n_frames] = size(vol);
     
     % Aux info: timestamp
-    if ~isempty(timestamp) && n_frame ~= length(timestamp)
+    if isempty(timestamp)
+        timestamp = NaN(1, n_frames);
+    elseif n_frames ~= length(timestamp)
         disp('num of timestamp ~= num of frames.');
         timestamp = NaN(1, n_frames);
     end
