@@ -465,7 +465,11 @@ function [hfig] = imvol(vol, varargin)
                 end
                 delaytime = 0.1;
                 %
-                v = VideoWriter([s_title, '.mp4'], 'MPEG-4'); 
+                filename = strrep(s_title, ' ', '_');
+                filename = strrep(filename, '(', '_');
+                filename = strrep(filename, ':', '');
+                %
+                v = VideoWriter([filename, '.mp4'], 'MPEG-4'); 
                 v.FrameRate = 4;
                 open(v);
                 % 
@@ -478,10 +482,10 @@ function [hfig] = imvol(vol, varargin)
                     im = frame2im(frame);
                     [A, map] = rgb2ind(im, 256);
                     if k == 1 
-                        imwrite(A, map, [s_title, '.gif'], 'gif', 'LoopCount', Inf, 'DelayTime', delaytime);
+                        imwrite(A, map, [filename, '.gif'], 'gif', 'LoopCount', Inf, 'DelayTime', delaytime);
                         %imwrite(im, [s_title, '.tif']);
                     else
-                        imwrite(A, map, [s_title, '.gif'], 'gif', 'WriteMode', 'append', 'DelayTime', delaytime);
+                        imwrite(A, map, [filename, '.gif'], 'gif', 'WriteMode', 'append', 'DelayTime', delaytime);
                         %imwrite(im, [s_title, '.tif'], 'WriteMode', 'append');
                     end
                     % 
