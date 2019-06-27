@@ -98,6 +98,15 @@ function [hfig] = imvol(vol, varargin)
     % replace '_' with ' '
     s_title = strrep(s_title, '_', ' ');
     
+    % filename input
+    if isempty(p.Results.filename)
+        filename = strrep(s_title, ' ', '_');
+        filename = strrep(filename, '(', '_');
+        filename = strrep(filename, ':', '');
+    else
+        filename = p.Results.filename;
+    end
+    
     N = ndims(vol);
     if N > 3
         error('The input image stack (vol) has too high dims >3.');
@@ -325,9 +334,6 @@ function [hfig] = imvol(vol, varargin)
         end
         
         if SAVE_png
-            filename = strrep(s_title, ' ', '_');
-            filename = strrep(filename, '(', '_');
-            filename = strrep(filename, ':', '');
             if ~FLAG_roi
                 filename = sprintf('%s_%dof%d_lower%.3f_upper%.3f.png', filename, data.i, n_frames, lower, upper); 
             else
@@ -463,11 +469,7 @@ function [hfig] = imvol(vol, varargin)
                 else
                     FLAG_z = false;
                 end
-                delaytime = 0.1;
-                %
-                filename = strrep(s_title, ' ', '_');
-                filename = strrep(filename, '(', '_');
-                filename = strrep(filename, ':', '');
+                gif_delaytime = 0.4;
                 %
                 v = VideoWriter([filename, '.mp4'], 'MPEG-4'); 
                 v.FrameRate = 4;
@@ -482,10 +484,10 @@ function [hfig] = imvol(vol, varargin)
                     im = frame2im(frame);
                     [A, map] = rgb2ind(im, 256);
                     if k == 1 
-                        imwrite(A, map, [filename, '.gif'], 'gif', 'LoopCount', Inf, 'DelayTime', delaytime);
+                        imwrite(A, map, [filename, '.gif'], 'gif', 'LoopCount', Inf, 'DelayTime', gif_delaytime);
                         %imwrite(im, [s_title, '.tif']);
                     else
-                        imwrite(A, map, [filename, '.gif'], 'gif', 'WriteMode', 'append', 'DelayTime', delaytime);
+                        imwrite(A, map, [filename, '.gif'], 'gif', 'WriteMode', 'append', 'DelayTime', gif_delaytime);
                         %imwrite(im, [s_title, '.tif'], 'WriteMode', 'append');
                     end
                     % 
@@ -700,6 +702,7 @@ function p =  ParseInput(varargin)
     addParamValue(p,'FOV', 0, @(x) isnumeric(x)); % um
     addParamValue(p,'timestamp', [], @(x) isnumeric(x)); % sec
     addParamValue(p,'globalContrast', false, @(x) islogical(x)); % um
+    addParamValue(p,'filename', []); 
     
     % Call the parse method of the object to read and validate each argument in the schema:
     p.parse(varargin{:});
