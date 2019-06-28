@@ -469,7 +469,7 @@ function [hfig] = imvol(vol, varargin)
                 else
                     FLAG_z = false;
                 end
-                gif_delaytime = 0.4;
+                gif_delaytime = 0.75;
                 %
                 v = VideoWriter([filename, '.mp4'], 'MPEG-4'); 
                 v.FrameRate = 4;
