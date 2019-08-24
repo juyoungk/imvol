@@ -176,6 +176,12 @@ function [hfig] = imvol(vol, varargin)
         minI = min(vv);
         maxI = max(vv);
         vv = mat2gray(vv);
+        
+        % initial MinMax
+        upper_global = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
+        lower_global = min((tols(id_tol) + tols(id_add_lower))*0.01, upper_global);
+        Tol_global = [lower_global upper_global];
+        MinMaxScaled = stretchlim(vv, Tol_global); % Can vary depending on Tol values.
     end
         
     % Nested function definition for easy access to stack 'vol'
@@ -196,19 +202,19 @@ function [hfig] = imvol(vol, varargin)
         % MinMax
         if globalContrast
             I = mat2gray(I);
-            MinMax = stretchlim(vv, Tol); % Can vary depending on Tol values. 
+            %MinMaxScaled = stretchlim(vv, Tol); % Can take very long time.. 
         else
             minI = min(I(:));
             maxI = max(I(:));
             % Rescaling to [0 1] for stretchlim
             I = mat2gray(I);
-            MinMax = stretchlim(I,Tol); % output is always [0 1].
+            MinMaxScaled = stretchlim(I,Tol); % output is always [0 1].
         end
         % Image rescaling
-        J = imadjust(I, MinMax);
+        J = imadjust(I, MinMaxScaled);
         
         % Reconversion to original scale (for display)
-        MinMax = MinMax * double(maxI - minI);
+        MinMax = MinMaxScaled * double(maxI - minI);
         MinMax = MinMax + double(minI);
         
         % new way of adjusting?
@@ -388,8 +394,20 @@ function [hfig] = imvol(vol, varargin)
                 data.i = max(1, data.i - 1);
             case 'uparrow'
                 id_tol = min(id_tol + 1, n_tols);
+                % Update MinMaxScaled for globalContrast case
+                if globalContrast
+                    upper_g = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
+                    lower_g = min((tols(id_tol) + tols(id_add_lower))*0.01, upper_g);
+                    MinMaxScaled = computeContrastRange(vv, upper_g, lower_g); 
+                end
             case 'downarrow'
-                id_tol = max(1, id_tol - 1); 
+                id_tol = max(1, id_tol - 1);
+                % Update MinMaxScaled for globalContrast case
+                if globalContrast
+                    upper_g = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
+                    lower_g = min((tols(id_tol) + tols(id_add_lower))*0.01, upper_g);
+                    MinMaxScaled = computeContrastRange(vv, upper_g, lower_g); 
+                end
             case '1'
                 id_add_lower = max(1, id_add_lower - 1); 
             case '2'
@@ -629,8 +647,7 @@ function [hfig] = imvol(vol, varargin)
         redraw();
     end
 
-    
-    
+    %disp(MinMaxScaled);
 end
 
 function q = is_valid_zoom(zoom)
@@ -761,5 +778,11 @@ function J = myadjust(I, c)
     MinMax = stretchlim(I,Tol);
     J = imadjust(I, MinMax);
 end
+
+function MinMaxScaled = computeContrastRange(vv, upper, lower)
+    Tol = [lower upper];
+    MinMaxScaled = stretchlim(vv, Tol);
+end
+
 
 % redefine imline? 
