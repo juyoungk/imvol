@@ -78,6 +78,7 @@ function [hfig] = imvol(vol, varargin)
     FLAG_edit = p.Results.edit;
     globalContrast = p.Results.globalContrast;
     z_step_um = p.Results.z_step_um;
+    t_step = p.Results.t_step;
     timestamp = p.Results.timestamp;
     %
 %     import java.awt.Robot
@@ -114,6 +115,9 @@ function [hfig] = imvol(vol, varargin)
         error('Not image (ndims <2)');
     end
     
+    % Get frame numbers
+    [rows, cols, n_frames] = size(vol);
+    
     if ishandle(hfig)
         % if fig handle is given, give focus to the figure.
         figure(hfig);
@@ -125,11 +129,16 @@ function [hfig] = imvol(vol, varargin)
         if ~isempty(hfig)
             disp('(imvol) The input fig handle was not appropriate. New figure was created.');
         end
-        hfig = figure();
+        if rows == cols
+            pos = [550 70 850 893];
+        else
+            pos = [550 70 927 1311];
+        end
+        hfig = figure('Position', pos);
     end
     hfig.Color = 'none';
     hfig.PaperPositionMode = 'auto';
-    hfig.InvertHardcopy = 'off';   
+    hfig.InvertHardcopy = 'off';
     pos = hfig.Position;
     axes('Position', [0  0  1  0.9524], 'Visible', 'off');
     
@@ -138,9 +147,6 @@ function [hfig] = imvol(vol, varargin)
     
     % Set the callback on figure
     set(hfig, 'KeyPressFcn', @keypress)
-    
-    % Get frame numbers
-    [rows, cols, n_frames] = size(vol);
     
     % Aux info: timestamp
     if isempty(timestamp)
@@ -166,7 +172,7 @@ function [hfig] = imvol(vol, varargin)
     
     % ROI mode parameters
     sensitivity_0 = 0.04; % sensitivity for adaptive binarization
-    P_connected_0 = 55; % depending on magnification (zoom) factor
+    P_connected_0 = 25; % depending on magnification (zoom) factor
     sensitivity = sensitivity_0; 
     P_connected = P_connected_0; 
     
@@ -376,6 +382,10 @@ function [hfig] = imvol(vol, varargin)
             str3 = sprintf('   Z =%3d um ', data.i*z_step_um);
             text(ax.XLim(1), ax.YLim(1), str3, 'FontSize', 15, 'Color', 'w', ...
                 'VerticalAlignment', 'top', 'HorizontalAlignment','left');
+        elseif ~isempty(t_step)
+            str3 = sprintf('   t = %4.2f sec ', data.i*t_step);
+            text(ax.XLim(2), ax.YLim(1), str3, 'FontSize', 15, 'Color', 'w', ...
+                'VerticalAlignment', 'top', 'HorizontalAlignment','right');
         end
         
         uiresume(hfig);
@@ -487,10 +497,16 @@ function [hfig] = imvol(vol, varargin)
                 else
                     FLAG_z = false;
                 end
-                gif_delaytime = 0.75;
-                %
+                
                 v = VideoWriter([filename, '.mp4'], 'MPEG-4'); 
-                v.FrameRate = 4;
+                if ~isempty(t_step)
+                    gif_delaytime = t_step;
+                    v.FrameRate = round(1./gif_delaytime);
+                else
+                    gif_delaytime = 0.25;
+                    v.FrameRate = 4;
+                end
+                %
                 open(v);
                 % 
                 for k = 1:data.imax
@@ -716,8 +732,9 @@ function p =  ParseInput(varargin)
     addParamValue(p,'edit', true, @(x) islogical(x));
     addParamValue(p,'z_step_um', 1, @(x) isnumeric(x));
     addParamValue(p,'z_display', false, @(x) islogical(x));
+    addParamValue(p,'t_step', [], @(x) isnumeric(x)); % time-series image stack
     addParamValue(p,'FOV', 0, @(x) isnumeric(x)); % um
-    addParamValue(p,'timestamp', [], @(x) isnumeric(x)); % sec
+    addParamValue(p,'timestamp', [], @(x) isnumeric(x)); % sec. series of snaps.
     addParamValue(p,'globalContrast', false, @(x) islogical(x)); % um
     addParamValue(p,'filename', []); 
     
