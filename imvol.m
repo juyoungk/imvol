@@ -130,9 +130,9 @@ function [hfig] = imvol(vol, varargin)
             disp('(imvol) The input fig handle was not appropriate. New figure was created.');
         end
         if rows == cols
-            pos = [550 70 850 893];
+            pos = [15 80 850 893];
         else
-            pos = [550 70 927 1311];
+            pos = [15 80 850 1200];
         end
         hfig = figure('Position', pos);
     end
