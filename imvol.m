@@ -166,7 +166,7 @@ function [hfig] = imvol(vol, varargin)
     data.imax = n_frames;
     tols = [0, 0.01, 0.02, 0.05, 0.1:0.1:0.9, 1:0.2:2, 2.5:0.5:5, 6:1:11, 12:2:20, 25:5:95]; % percentage; tolerance for saturation
     n_tols = length(tols);
-    id_tol = 4; % initial tol = 0.05;
+    id_tol = 5; % initial tol = 0.05;
     id_add_lower = 1;
     id_add_upper = 3;
     
@@ -312,7 +312,7 @@ function [hfig] = imvol(vol, varargin)
         % Shared components
         ax = gca;
         % Title (on axes, not image)
-        title(s_title, 'FontSize', 15, 'Color', 'w');
+        title(s_title, 'FontSize', 18, 'Color', 'w');
         
         % Scale bar
         if FLAG_scale_bar
