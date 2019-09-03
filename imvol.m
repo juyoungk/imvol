@@ -169,6 +169,13 @@ function [hfig] = imvol(vol, varargin)
     id_tol = 5; % initial tol = 0.05;
     id_add_lower = 1;
     id_add_upper = 3;
+    function Tol = getTol()
+        % update other variables using struct 'data'
+        data.upper = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
+        data.lower = min((tols(id_tol) + tols(id_add_lower))*0.01, data.upper);
+        data.lower = min(data.lower, data.upper-0.01); % TOl(1) should be lower than TOl(2).
+        Tol = [data.lower data.upper];
+    end
     
     % ROI mode parameters
     sensitivity_0 = 0.04; % sensitivity for adaptive binarization
@@ -176,18 +183,14 @@ function [hfig] = imvol(vol, varargin)
     sensitivity = sensitivity_0; 
     P_connected = P_connected_0; 
     
-    % Global MinMax
+    % Image (or vol) normalization to [0 1]
     if globalContrast
         vv = vol(:);
         minI = min(vv);
         maxI = max(vv);
-        vv = mat2gray(vv);
-        
-        % initial MinMax
-        upper_global = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
-        lower_global = min((tols(id_tol) + tols(id_add_lower))*0.01, upper_global);
-        Tol_global = [lower_global upper_global];
-        MinMaxScaled = stretchlim(vv, Tol_global); % Can vary depending on Tol values.
+        vol = (vol-minI)/double(maxI); % normalizes volume data.
+        vv = vol(:);                   % normalizes reshaped vector.
+        data.MinMaxScaled = stretchlim(vv, getTol()); % stretchlim over 1D reshaped vector.
     end
         
     % Nested function definition for easy access to stack 'vol'
@@ -200,32 +203,21 @@ function [hfig] = imvol(vol, varargin)
             I = comp(vol, data.i);
         end
         
-        % Contrast range
-        upper = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
-        lower = min((tols(id_tol) + tols(id_add_lower))*0.01, upper);
-        Tol = [lower upper];
-        
-        % MinMax
-        if globalContrast
-            I = mat2gray(I);
-            %MinMaxScaled = stretchlim(vv, Tol); % Can take very long time.. 
-        else
+        % Contrast range update
+        if ~globalContrast
             minI = min(I(:));
             maxI = max(I(:));
-            % Rescaling to [0 1] for stretchlim
             I = mat2gray(I);
-            MinMaxScaled = stretchlim(I,Tol); % output is always [0 1].
+            data.MinMaxScaled = stretchlim(I, getTol()); % output is always [0 1].    
         end
-        % Image rescaling
-        J = imadjust(I, MinMaxScaled);
+        
+        % Contrast enhancement
+        % by mapping intput [LOW, HIGH] to output range [0 1] with gamma (default 1)
+        J = imadjust(I, data.MinMaxScaled);
         
         % Reconversion to original scale (for display)
-        MinMax = MinMaxScaled * double(maxI - minI);
-        MinMax = MinMax + double(minI);
-        
-        % new way of adjusting?
-        %J = imadjust(I, MinMax, [0 1]); % MinMax can be real value?
-
+        MinMax = minI + double(maxI - minI) * data.MinMaxScaled;
+      
         % draw image or visualization
         if ~FLAG_roi 
             imshow(J);
@@ -235,7 +227,7 @@ function [hfig] = imvol(vol, varargin)
             
             % txt str
             %str1 = sprintf('low=%.3f upp=%.3f', lower, upper);
-            str1 = sprintf('Min =%6.0f (%4.1f%%)\nMax =%5.0f (%4.1f%%)',MinMax(1),lower*100,MinMax(2),upper*100);
+            str1 = sprintf('Min =%6.0f (%4.1f%%)\nMax =%5.0f (%4.1f%%)',MinMax(1),data.lower*100,MinMax(2),data.upper*100);
             %str2 = '''q'' for default contrast. ''SPACE'' for ROI mode. ''b'' scale bar';
             str2 = '''SPACE'' for ROI mode.';
             str3 = sprintf('%d/%d', data.i, data.imax);
@@ -347,7 +339,7 @@ function [hfig] = imvol(vol, varargin)
         
         if SAVE_png
             if ~FLAG_roi
-                filename = sprintf('%s_%dof%d_lower%.3f_upper%.3f.png', filename, data.i, n_frames, lower, upper); 
+                filename = sprintf('%s_%dof%d_lower%.3f_upper%.3f.png', filename, data.i, n_frames, data.lower, data.upper); 
             else
                 filename = sprintf('%s_%dof%d_ROI_conn%.3f_sens%.3f.png', filename, data.i, n_frames, P_connected, sensitivity);
             end
@@ -406,26 +398,34 @@ function [hfig] = imvol(vol, varargin)
                 id_tol = min(id_tol + 1, n_tols);
                 % Update MinMaxScaled for globalContrast case
                 if globalContrast
-                    upper_g = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
-                    lower_g = min((tols(id_tol) + tols(id_add_lower))*0.01, upper_g);
-                    MinMaxScaled = computeContrastRange(vv, upper_g, lower_g); 
+                    data.MinMaxScaled = stretchlim(vv, getTol());
                 end
             case 'downarrow'
                 id_tol = max(1, id_tol - 1);
-                % Update MinMaxScaled for globalContrast case
+                % Update data.MinMaxScaled for globalContrast case
                 if globalContrast
-                    upper_g = max(1 - (tols(id_tol) + tols(id_add_upper))*0.01, 0);
-                    lower_g = min((tols(id_tol) + tols(id_add_lower))*0.01, upper_g);
-                    MinMaxScaled = computeContrastRange(vv, upper_g, lower_g); 
+                    data.MinMaxScaled = stretchlim(vv, getTol());
                 end
             case '1'
-                id_add_lower = max(1, id_add_lower - 1); 
+                id_add_lower = max(1, id_add_lower - 1);
+                if globalContrast
+                    data.MinMaxScaled = stretchlim(vv, getTol());
+                end
             case '2'
                 id_add_lower = min(id_add_lower + 1, n_tols);
+                if globalContrast
+                    data.MinMaxScaled = stretchlim(vv, getTol());
+                end
             case '9'
                 id_add_upper = max(1, id_add_upper - 1); 
+                if globalContrast
+                    data.MinMaxScaled = stretchlim(vv, getTol());
+                end
             case '0'
                 id_add_upper = min(id_add_upper + 1, n_tols);
+                if globalContrast
+                    data.MinMaxScaled = stretchlim(vv, getTol());
+                end
             case 'l' % line profile
                 [~,~,c,xi,yi] = improfile;
                 c_section = zeros(length(c), n_frames);
@@ -663,7 +663,7 @@ function [hfig] = imvol(vol, varargin)
         redraw();
     end
 
-    %disp(MinMaxScaled);
+    %disp(data.MinMaxScaled);
 end
 
 function q = is_valid_zoom(zoom)
@@ -795,11 +795,5 @@ function J = myadjust(I, c)
     MinMax = stretchlim(I,Tol);
     J = imadjust(I, MinMax);
 end
-
-function MinMaxScaled = computeContrastRange(vv, upper, lower)
-    Tol = [lower upper];
-    MinMaxScaled = stretchlim(vv, Tol);
-end
-
 
 % redefine imline? 
