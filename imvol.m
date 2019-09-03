@@ -178,8 +178,16 @@ function [hfig] = imvol(vol, varargin)
     end
     
     % ROI mode parameters
-    sensitivity_0 = 0.04; % sensitivity for adaptive binarization
-    P_connected_0 = 25; % depending on magnification (zoom) factor
+    if ~isempty(cc) && isfield(cc, 'sensitivity') && isnumeric(cc.sensitivity)
+        sensitivity_0 = cc.sensitivity;
+    else
+        sensitivity_0 = 0.04; % sensitivity for adaptive binarization
+    end
+    if ~isempty(cc) && isfield(cc, 'P_connected') && isnumeric(cc.P_connected)
+        P_connected_0 = cc.P_connected;
+    else
+        P_connected_0 = 17; % depending on magnification (zoom) factor
+    end
     sensitivity = sensitivity_0; 
     P_connected = P_connected_0; 
     
@@ -235,7 +243,6 @@ function [hfig] = imvol(vol, varargin)
             % ROI mode
             if ~isempty(p.Results.roi)
                 % if cc is given
-                cc = p.Results.roi;
                 bw = conn_to_bwmask(cc);
                 bw = max(bw, [], 3);
             else
@@ -253,6 +260,7 @@ function [hfig] = imvol(vol, varargin)
                 bw = bw - bwselect(bw, c, r, 8);  % remove mouse-clicked components
                 %s = regionprops(bw, 'Centroid');
             end
+            % Create (or modify) cc struct
             cc = bwconncomp(bw, 8); % 'cc' is updated inside a local function.
             
             % save for regenrating same pattern
@@ -573,7 +581,7 @@ function [hfig] = imvol(vol, varargin)
     function keypress_roi(~, evnt)
         % step for tolerance or contrast
         s = 0.02;
-        s_pixel = 5;
+        s_pixel = 2;
         
         % ESC key press? does not work for imroi..
 %         keys.keyPress(java.awt.event.KeyEvent.VK_ESCAPE) 
