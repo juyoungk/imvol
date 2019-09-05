@@ -181,12 +181,12 @@ function [hfig] = imvol(vol, varargin)
     if ~isempty(cc) && isfield(cc, 'sensitivity') && isnumeric(cc.sensitivity)
         sensitivity_0 = cc.sensitivity;
     else
-        sensitivity_0 = 0.04; % sensitivity for adaptive binarization
+        sensitivity_0 = 0.06; % sensitivity for adaptive binarization
     end
     if ~isempty(cc) && isfield(cc, 'P_connected') && isnumeric(cc.P_connected)
         P_connected_0 = cc.P_connected;
     else
-        P_connected_0 = 17; % depending on magnification (zoom) factor
+        P_connected_0 = 9; % depending on magnification (zoom) factor
     end
     sensitivity = sensitivity_0; 
     P_connected = P_connected_0; 
@@ -263,6 +263,14 @@ function [hfig] = imvol(vol, varargin)
             % Create (or modify) cc struct
             cc = bwconncomp(bw, 8); % 'cc' is updated inside a local function.
             
+            % Image processing (e.g. dialte)
+            % for selected rois
+%             bw_array = conn_to_bwmask(cc); % logical array
+%             bw_array_dialted = imdilate(bw_array, strel('line', 30, 170));
+%             for i=1:cc.NumObjects
+%                 cc.PixelIdxList{i} = find(bw_array_dialted(:,:,i));
+%             end
+%              
             % save for regenrating same pattern
                 cc.mask  = mask;
                 cc.white = white;
@@ -613,13 +621,13 @@ function [hfig] = imvol(vol, varargin)
                 % Go back to imshow mode
                 FLAG_roi = ~FLAG_roi;
                 set(hfig, 'KeyPressFcn', @keypress)
-            case 'r' % mask update. remove connected components by multiple mouse clicks
+            case 'r' % Remove connected components by multiple mouse clicks
                 uiresume(hfig)
                 [col, row] = getpts;
                 c = [c; col];
                 r = [r; row];
                 
-            case 'd' % mask update. 'Drag': remove all components in specified rect ROI.
+            case 'd' %'Drag': remove all components in specified rect ROI.
                 %uiresume(hfig)
                 hrect = imrect;
                 while ~isempty(hrect)
@@ -636,7 +644,6 @@ function [hfig] = imvol(vol, varargin)
                 % crosstalk.. 
                 m = createMask(hline);
                 mask = mask | m;
-                
 %                 while ~isempty(hline)
 %                     m = createMask(hline);
 %                     mask = mask | m;
