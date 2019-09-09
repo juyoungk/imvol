@@ -181,12 +181,12 @@ function [hfig] = imvol(vol, varargin)
     if ~isempty(cc) && isfield(cc, 'sensitivity') && isnumeric(cc.sensitivity)
         sensitivity_0 = cc.sensitivity;
     else
-        sensitivity_0 = 0.06; % sensitivity for adaptive binarization
+        sensitivity_0 = 0.04; % sensitivity for adaptive binarization
     end
     if ~isempty(cc) && isfield(cc, 'P_connected') && isnumeric(cc.P_connected)
         P_connected_0 = cc.P_connected;
     else
-        P_connected_0 = 9; % depending on magnification (zoom) factor
+        P_connected_0 = 11; % depending on magnification (zoom) factor
     end
     sensitivity = sensitivity_0; 
     P_connected = P_connected_0; 
@@ -224,7 +224,7 @@ function [hfig] = imvol(vol, varargin)
         J = imadjust(I, data.MinMaxScaled);
         
         % Reconversion to original scale (for display)
-        MinMax = minI + double(maxI - minI) * data.MinMaxScaled;
+        MinMax = double(minI) + double(maxI - minI) * data.MinMaxScaled;
       
         % draw image or visualization
         if ~FLAG_roi 
