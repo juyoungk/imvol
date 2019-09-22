@@ -355,12 +355,12 @@ function [hfig] = imvol(vol, varargin)
         
         if SAVE_png
             if ~FLAG_roi
-                filename = sprintf('%s_%dof%d_lower%.3f_upper%.3f.png', filename, data.i, n_frames, data.lower, data.upper); 
+                filename_save = sprintf('%s_%dof%d_lower%.3f_upper%.3f.png', filename, data.i, n_frames, data.lower, data.upper); 
             else
-                filename = sprintf('%s_%dof%d_ROI_conn%.3f_sens%.3f.png', filename, data.i, n_frames, P_connected, sensitivity);
+                filename_save = sprintf('%s_%dof%d_ROI_conn%.3f_sens%.3f.png', filename, data.i, n_frames, P_connected, sensitivity);
             end
             %saveas(hfig, filename);
-            print(filename, '-dpng', '-r300'); %high res
+            print(filename_save, '-dpng', '-r300'); %high res
             SAVE_png = false; % save only one time
         end   
         
